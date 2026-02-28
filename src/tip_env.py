@@ -41,10 +41,10 @@ class TripleInvertedPendulumEnv(gym.Env):
         super().__init__()
         self.model = mujoco.MjModel.from_xml_path(model_path)
         self.data = mujoco.MjData(self.model)
-        try:
-            self.renderer = mujoco.Renderer(self.model, height=render_height, width=render_width)
-        except ValueError:
-            self.renderer = mujoco.Renderer(self.model, height=480, width=640)
+        self.render_width = render_width
+        self.render_height = render_height
+        self.renderer = None
+        self.render_ready = False
 
         self.frame_skip = frame_skip
         self.max_steps = max_steps
@@ -72,10 +72,34 @@ class TripleInvertedPendulumEnv(gym.Env):
             self.log_dir.mkdir(parents=True, exist_ok=True)
 
     def close(self) -> None:
-        self.renderer.close()
+        if self.renderer is not None:
+            self.renderer.close()
+            self.renderer = None
+            self.render_ready = False
         if self._log_fp is not None:
             self._log_fp.close()
             self._log_fp = None
+
+    def _ensure_renderer(self) -> bool:
+        if self.render_ready and self.renderer is not None:
+            return True
+        try:
+            self.renderer = mujoco.Renderer(
+                self.model,
+                height=self.render_height,
+                width=self.render_width,
+            )
+            self.render_ready = True
+            return True
+        except Exception:
+            try:
+                self.renderer = mujoco.Renderer(self.model, height=480, width=640)
+                self.render_ready = True
+                return True
+            except Exception:
+                self.renderer = None
+                self.render_ready = False
+                return False
 
     def _build_goal_table(self) -> np.ndarray:
         goals = []
@@ -294,6 +318,8 @@ class TripleInvertedPendulumEnv(gym.Env):
         return obs, reward, terminated, truncated, info
 
     def render(self):
+        if not self._ensure_renderer():
+            return np.zeros((self.render_height, self.render_width, 3), dtype=np.uint8)
         try:
             self.renderer.update_scene(self.data, camera=self.render_camera)
         except Exception:

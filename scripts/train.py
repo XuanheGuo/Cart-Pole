@@ -152,6 +152,9 @@ class LiveTrainingVizCallback(BaseCallback):
         if self.n_calls % self.render_freq != 0:
             return True
 
+        if not self.window_available and self.video_writer is None:
+            return True
+
         base_env = self._resolve_base_env()
         frame = base_env.render()
 
