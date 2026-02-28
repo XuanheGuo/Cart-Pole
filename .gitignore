@@ -1,0 +1,18 @@
+# Python env
+.venv/
+__pycache__/
+*.pyc
+
+# macOS
+.DS_Store
+
+# Training outputs and logs
+outputs/
+logs/
+*.mp4
+*.jsonl
+*.csv
+
+# Tensorboard
+runs/
+*/tb/

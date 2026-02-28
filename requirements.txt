@@ -1,0 +1,11 @@
+gymnasium==0.29.1
+mujoco==3.2.6
+stable-baselines3==2.3.2
+torch>=2.2
+numpy>=1.26
+imageio>=2.34
+opencv-python>=4.9
+tqdm>=4.66
+tensorboard>=2.16
+rich>=13.7
+imageio-ffmpeg>=0.5.1
