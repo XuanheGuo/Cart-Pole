@@ -56,6 +56,24 @@ python scripts/train.py \
   --progress-bar
 ```
 
+先验证成功率（推荐基准化配置）：
+
+```bash
+python scripts/train.py \
+  --model models/triple_inverted_pendulum.xml \
+  --total-steps 400000 \
+  --run-dir outputs/sac_tip_baseline \
+  --single-target-mode \
+  --benchmark-reward-mode \
+  --no-edge-safety-assist \
+  --num-envs 8 \
+  --vec-env auto \
+  --utd-multiplier 1.0 \
+  --batch-size 1024 \
+  --device cuda \
+  --progress-bar
+```
+
 如需进度条（需要 `rich+tqdm`）可加：
 
 ```bash

@@ -218,13 +218,16 @@ class LiveTrainingVizCallback(BaseCallback):
             cv2.destroyAllWindows()
 
 
-def build_env(model_path: str, log_dir: Path, rank: int = 0, base_seed: int = 42):
+def build_env(model_path: str, log_dir: Path, rank: int = 0, base_seed: int = 42, args=None):
     def _make():
         env = TripleInvertedPendulumEnv(
             model_path=model_path,
             frame_skip=2,
             max_steps=2000,
             transition_mode=True,
+            single_target_mode=True if args is None else args.single_target_mode,
+            benchmark_reward_mode=True if args is None else args.benchmark_reward_mode,
+            edge_safety_assist=False if args is None else args.edge_safety_assist,
             log_dir=str(log_dir / "episodes"),
             seed=base_seed + rank,
         )
@@ -245,7 +248,7 @@ def make_vector_env(args, run_dir: Path):
     elif args.vec_env == "auto":
         use_subproc = args.num_envs > 1 and not want_render
 
-    env_fns = [build_env(args.model, run_dir, rank=i, base_seed=args.seed) for i in range(args.num_envs)]
+    env_fns = [build_env(args.model, run_dir, rank=i, base_seed=args.seed, args=args) for i in range(args.num_envs)]
     if use_subproc:
         # Avoid CPU thread oversubscription with many worker processes.
         os.environ.setdefault("OMP_NUM_THREADS", "1")
@@ -281,6 +284,24 @@ def main():
     parser.add_argument("--learning-starts", type=int, default=20_000, help="Steps before updates")
     parser.add_argument("--policy-width", type=int, default=512, help="MLP hidden width")
     parser.add_argument("--policy-depth", type=int, default=3, help="MLP hidden layers")
+    parser.add_argument(
+        "--single-target-mode",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="固定 G0->G7 单目标训练（推荐先开启）",
+    )
+    parser.add_argument(
+        "--benchmark-reward-mode",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="使用基准化奖励（推荐先开启）",
+    )
+    parser.add_argument(
+        "--edge-safety-assist",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="边界区域自动回推（多任务困难时可开启）",
+    )
     args = parser.parse_args()
 
     run_dir = Path(args.run_dir)

@@ -32,6 +32,9 @@ class TripleInvertedPendulumEnv(gym.Env):
         frame_skip: int = 4,
         max_steps: int = 2000,
         transition_mode: bool = True,
+        single_target_mode: bool = True,
+        benchmark_reward_mode: bool = True,
+        edge_safety_assist: bool = False,
         log_dir: str | None = None,
         seed: int | None = None,
         render_width: int = 960,
@@ -52,6 +55,9 @@ class TripleInvertedPendulumEnv(gym.Env):
         self.frame_skip = frame_skip
         self.max_steps = max_steps
         self.transition_mode = transition_mode
+        self.single_target_mode = single_target_mode
+        self.benchmark_reward_mode = benchmark_reward_mode
+        self.edge_safety_assist = edge_safety_assist
         self.render_camera = render_camera
         self.np_random = np.random.default_rng(seed)
         self.success_angle_threshold = float(success_angle_threshold)
@@ -122,7 +128,11 @@ class TripleInvertedPendulumEnv(gym.Env):
         self.task = TransitionTask(source_goal=source_goal % 8, target_goal=target_goal % 8)
 
     def sample_task(self) -> TransitionTask:
-        # 训练默认从自然下垂姿态 G0 出发，目标在其余7个姿态中采样
+        # 基准模式：固定 G0 -> G7，先验证能稳定成功。
+        if self.single_target_mode:
+            self.task = TransitionTask(0, 7)
+            return self.task
+        # 多任务模式：从自然下垂姿态 G0 出发，目标在其余7个姿态中采样
         src = 0
         dst = int(self.np_random.integers(0, 8))
         while dst == src:
@@ -162,26 +172,27 @@ class TripleInvertedPendulumEnv(gym.Env):
 
         posture_cost = float(np.sum(angle_err**2))
         vel_cost = float(0.03 * np.sum(qd**2))
-        cart_cost = float(0.12 * x**2 + 0.02 * xd**2)
-        effort_cost = float(0.002 * np.sum(action**2))
+        cart_cost = float(0.08 * x**2 + 0.015 * xd**2)
+        effort_cost = float(0.0015 * np.sum(action**2))
         edge_penalty = float(0.0)
         swing_bonus = float(0.0)
         stall_penalty = float(0.0)
         progress_reward = float(0.0)
         abs_x = abs(x)
-        if abs_x > 4.5:
-            edge_penalty = 0.3 * (abs_x - 4.5) ** 2
 
-        # Encourage monotonic progress toward target posture.
-        progress_reward = 1.2 * (self.prev_posture_cost - posture_cost)
-        # Encourage active swing-up when far from target to avoid passive center hovering.
-        if posture_cost > 1.2:
-            swing_bonus = 0.08 * min(abs(xd), 4.0) + 0.04 * min(np.linalg.norm(qd), 10.0)
-            if abs_x < 0.35 and abs(xd) < 0.12 and np.linalg.norm(qd) < 0.2:
-                stall_penalty = 0.4
-
-        reward = 3.5 - (2.5 * posture_cost + vel_cost + cart_cost + effort_cost + edge_penalty)
-        reward += progress_reward + swing_bonus - stall_penalty
+        if self.benchmark_reward_mode:
+            # Benchmark-like reward: prioritize posture stabilization with mild cart regularization.
+            reward = 5.0 - (2.0 * posture_cost + 0.8 * vel_cost + cart_cost + effort_cost)
+        else:
+            if abs_x > 5.0:
+                edge_penalty = 2.0 * (abs_x - 5.0) ** 2 + 0.15 * abs(xd)
+            progress_reward = 1.2 * (self.prev_posture_cost - posture_cost)
+            if posture_cost > 1.2:
+                swing_bonus = 0.08 * min(abs(xd), 4.0) + 0.04 * min(np.linalg.norm(qd), 10.0)
+                if abs_x < 0.35 and abs(xd) < 0.12 and np.linalg.norm(qd) < 0.2:
+                    stall_penalty = 0.4
+            reward = 3.5 - (2.5 * posture_cost + vel_cost + cart_cost + effort_cost + edge_penalty)
+            reward += progress_reward + swing_bonus - stall_penalty
 
         comps = {
             "posture_cost": posture_cost,
@@ -288,7 +299,17 @@ class TripleInvertedPendulumEnv(gym.Env):
     def step(self, action: np.ndarray):
         action = np.asarray(action, dtype=np.float32).reshape(1)
         action = np.clip(action, -1.0, 1.0)
+        x, xd = self._cart_state()
         filtered_action = 0.3 * self.last_action + 0.7 * float(action[0])
+        if self.edge_safety_assist:
+            # Optional edge correction for difficult multi-task setting.
+            abs_x = abs(x)
+            edge_zone = max(0.0, abs_x - 4.8)
+            if edge_zone > 0.0:
+                center_push = -np.sign(x) * min(1.0, edge_zone / 1.0) * 0.45
+                vel_damp = -0.08 * xd
+                filtered_action += center_push + vel_damp
+        filtered_action = float(np.clip(filtered_action, -1.0, 1.0))
         self.last_action = filtered_action
 
         self.data.ctrl[0] = filtered_action
@@ -311,7 +332,7 @@ class TripleInvertedPendulumEnv(gym.Env):
 
         terminated = False
         x, _ = self._cart_state()
-        out_of_track = abs(x) > 4.8
+        out_of_track = abs(x) > 6.2
         truncated = self.step_count >= self.max_steps or out_of_track
 
         obs = self._obs()
