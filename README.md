@@ -42,6 +42,20 @@ python scripts/train.py \
   --train-video outputs/train_live.mp4
 ```
 
+Colab/服务器提速建议（无窗口）：
+
+```bash
+python scripts/train.py \
+  --model models/triple_inverted_pendulum.xml \
+  --total-steps 800000 \
+  --run-dir outputs/sac_tip_fast \
+  --num-envs 8 \
+  --vec-env auto \
+  --utd-multiplier 1.0 \
+  --device cuda \
+  --progress-bar
+```
+
 如需进度条（需要 `rich+tqdm`）可加：
 
 ```bash

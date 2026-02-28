@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import os
 import sys
 import time
 from collections import deque
@@ -12,7 +13,7 @@ import imageio.v2 as imageio
 import numpy as np
 from stable_baselines3 import SAC
 from stable_baselines3.common.callbacks import BaseCallback, CallbackList, CheckpointCallback
-from stable_baselines3.common.vec_env import DummyVecEnv, VecMonitor
+from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecMonitor
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
@@ -53,6 +54,8 @@ class LiveTrainingVizCallback(BaseCallback):
         self.video_disabled_reason = ""
 
     def _resolve_base_env(self):
+        if not hasattr(self.training_env, "envs"):
+            return None
         env = self.training_env.envs[0]
         while hasattr(env, "env"):
             env = env.env
@@ -156,6 +159,8 @@ class LiveTrainingVizCallback(BaseCallback):
             return True
 
         base_env = self._resolve_base_env()
+        if base_env is None:
+            return True
         frame = base_env.render()
 
         mean_ret = float(np.mean(self.episode_returns)) if self.episode_returns else np.nan
@@ -213,7 +218,7 @@ class LiveTrainingVizCallback(BaseCallback):
             cv2.destroyAllWindows()
 
 
-def build_env(model_path: str, log_dir: Path):
+def build_env(model_path: str, log_dir: Path, rank: int = 0, base_seed: int = 42):
     def _make():
         env = TripleInvertedPendulumEnv(
             model_path=model_path,
@@ -221,10 +226,34 @@ def build_env(model_path: str, log_dir: Path):
             max_steps=2000,
             transition_mode=True,
             log_dir=str(log_dir / "episodes"),
+            seed=base_seed + rank,
         )
         return env
 
     return _make
+
+
+def make_vector_env(args, run_dir: Path):
+    want_render = args.live_view or bool(args.train_video)
+    if want_render and args.num_envs > 1:
+        print("[train] Rendering requested; forcing num_envs=1 to keep live render stable.")
+        args.num_envs = 1
+
+    use_subproc = False
+    if args.vec_env == "subproc":
+        use_subproc = True
+    elif args.vec_env == "auto":
+        use_subproc = args.num_envs > 1 and not want_render
+
+    env_fns = [build_env(args.model, run_dir, rank=i, base_seed=args.seed) for i in range(args.num_envs)]
+    if use_subproc:
+        # Avoid CPU thread oversubscription with many worker processes.
+        os.environ.setdefault("OMP_NUM_THREADS", "1")
+        os.environ.setdefault("MKL_NUM_THREADS", "1")
+        vec = SubprocVecEnv(env_fns)
+    else:
+        vec = DummyVecEnv(env_fns)
+    return VecMonitor(vec)
 
 
 def main():
@@ -238,13 +267,22 @@ def main():
     parser.add_argument("--live-fps", type=int, default=30)
     parser.add_argument("--train-video", default="", help="训练过程视频输出路径，留空则不保存")
     parser.add_argument("--progress-bar", action="store_true", help="启用SB3进度条(需要rich+tqdm)")
+    parser.add_argument("--num-envs", type=int, default=1, help="并行环境数；建议Colab GPU用4~16")
+    parser.add_argument("--vec-env", choices=["auto", "dummy", "subproc"], default="auto")
+    parser.add_argument(
+        "--utd-multiplier",
+        type=float,
+        default=1.0,
+        help="更新强度倍率；梯度步数=round(num_envs*utd_multiplier)",
+    )
+    parser.add_argument("--device", default="auto", help="SAC device, e.g. auto/cpu/cuda")
     args = parser.parse_args()
 
     run_dir = Path(args.run_dir)
     run_dir.mkdir(parents=True, exist_ok=True)
 
-    env = DummyVecEnv([build_env(args.model, run_dir)])
-    env = VecMonitor(env)
+    env = make_vector_env(args, run_dir)
+    gradient_steps = max(1, int(round(args.num_envs * args.utd_multiplier)))
 
     model = SAC(
         "MlpPolicy",
@@ -256,9 +294,10 @@ def main():
         gamma=0.99,
         tau=0.005,
         train_freq=(1, "step"),
-        gradient_steps=1,
+        gradient_steps=gradient_steps,
         ent_coef="auto",
         seed=args.seed,
+        device=args.device,
         tensorboard_log=str(run_dir / "tb"),
     )
 
