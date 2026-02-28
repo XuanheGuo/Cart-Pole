@@ -276,6 +276,11 @@ def main():
         help="更新强度倍率；梯度步数=round(num_envs*utd_multiplier)",
     )
     parser.add_argument("--device", default="auto", help="SAC device, e.g. auto/cpu/cuda")
+    parser.add_argument("--batch-size", type=int, default=1024, help="SAC batch size")
+    parser.add_argument("--buffer-size", type=int, default=1_000_000, help="Replay buffer size")
+    parser.add_argument("--learning-starts", type=int, default=20_000, help="Steps before updates")
+    parser.add_argument("--policy-width", type=int, default=512, help="MLP hidden width")
+    parser.add_argument("--policy-depth", type=int, default=3, help="MLP hidden layers")
     args = parser.parse_args()
 
     run_dir = Path(args.run_dir)
@@ -283,14 +288,16 @@ def main():
 
     env = make_vector_env(args, run_dir)
     gradient_steps = max(1, int(round(args.num_envs * args.utd_multiplier)))
+    net_arch = [args.policy_width for _ in range(max(1, args.policy_depth))]
 
     model = SAC(
         "MlpPolicy",
         env,
         verbose=1,
         learning_rate=3e-4,
-        buffer_size=300_000,
-        batch_size=512,
+        buffer_size=args.buffer_size,
+        learning_starts=args.learning_starts,
+        batch_size=args.batch_size,
         gamma=0.99,
         tau=0.005,
         train_freq=(1, "step"),
@@ -298,6 +305,7 @@ def main():
         ent_coef="auto",
         seed=args.seed,
         device=args.device,
+        policy_kwargs={"net_arch": net_arch},
         tensorboard_log=str(run_dir / "tb"),
     )
 
