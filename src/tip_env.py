@@ -37,6 +37,9 @@ class TripleInvertedPendulumEnv(gym.Env):
         render_width: int = 960,
         render_height: int = 720,
         render_camera: str = "side_2d",
+        success_angle_threshold: float = 0.25,
+        success_vel_threshold: float = 0.8,
+        success_hold_steps: int = 10,
     ) -> None:
         super().__init__()
         self.model = mujoco.MjModel.from_xml_path(model_path)
@@ -51,6 +54,9 @@ class TripleInvertedPendulumEnv(gym.Env):
         self.transition_mode = transition_mode
         self.render_camera = render_camera
         self.np_random = np.random.default_rng(seed)
+        self.success_angle_threshold = float(success_angle_threshold)
+        self.success_vel_threshold = float(success_vel_threshold)
+        self.success_hold_steps = int(success_hold_steps)
 
         self.goal_table = self._build_goal_table()
         self.task = TransitionTask(source_goal=0, target_goal=7)
@@ -65,6 +71,8 @@ class TripleInvertedPendulumEnv(gym.Env):
         self.last_info: dict[str, Any] = {}
         self.last_action = 0.0
         self.prev_posture_cost = 0.0
+        self.success_streak = 0
+        self.ever_success = False
 
         self.log_dir = Path(log_dir) if log_dir else None
         self._log_fp = None
@@ -188,10 +196,13 @@ class TripleInvertedPendulumEnv(gym.Env):
         }
         return reward, comps
 
-    def _success(self) -> bool:
+    def _success_instant(self) -> bool:
         q = self._joint_angles()
         err = np.abs(self._angle_error(q, self._target()))
-        return bool(np.all(err < 0.15) and np.linalg.norm(self._joint_velocities()) < 0.35)
+        return bool(
+            np.all(err < self.success_angle_threshold)
+            and np.linalg.norm(self._joint_velocities()) < self.success_vel_threshold
+        )
 
     def _obs(self) -> np.ndarray:
         x, xd = self._cart_state()
@@ -249,6 +260,8 @@ class TripleInvertedPendulumEnv(gym.Env):
 
         self.step_count = 0
         self.last_action = 0.0
+        self.success_streak = 0
+        self.ever_success = False
         q = self._joint_angles()
         self.prev_posture_cost = float(np.sum(self._angle_error(q, self._target()) ** 2))
 
@@ -286,7 +299,15 @@ class TripleInvertedPendulumEnv(gym.Env):
 
         reward, reward_components = self._reward(action)
         self.prev_posture_cost = float(reward_components["posture_cost"])
-        success = self._success()
+        success_instant = self._success_instant()
+        if success_instant:
+            self.success_streak += 1
+            self.ever_success = True
+        else:
+            self.success_streak = 0
+        success_stable = self.success_streak >= self.success_hold_steps
+        if success_stable:
+            reward += 1.0
 
         terminated = False
         x, _ = self._cart_state()
@@ -296,7 +317,10 @@ class TripleInvertedPendulumEnv(gym.Env):
         obs = self._obs()
         info = {
             **reward_components,
-            "is_success": success,
+            "is_success": success_stable,
+            "is_success_instant": success_instant,
+            "success_streak": self.success_streak,
+            "ever_success": self.ever_success,
             "source_goal": self.task.source_goal,
             "target_goal": self.task.target_goal,
             "step": self.step_count,

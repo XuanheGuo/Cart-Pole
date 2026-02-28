@@ -19,18 +19,16 @@ def run_pair(env: TripleInvertedPendulumEnv, model: SAC, src: int, dst: int, epi
     returns = []
     for _ in range(episodes):
         obs, _ = env.reset(options={"task": (src, dst)})
-        done = False
         ret = 0.0
-        last_ok = False
+        ever_ok = False
         for _ in range(steps):
             action, _ = model.predict(obs, deterministic=True)
             obs, reward, _, truncated, info = env.step(action)
             ret += reward
-            last_ok = bool(info.get("is_success", False))
+            ever_ok = ever_ok or bool(info.get("is_success", False)) or bool(info.get("ever_success", False))
             if truncated:
-                done = True
                 break
-        if last_ok:
+        if ever_ok:
             success += 1
         returns.append(ret)
     return success / episodes, float(np.mean(returns))
