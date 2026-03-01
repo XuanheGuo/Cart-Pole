@@ -42,9 +42,9 @@ class TripleInvertedPendulumEnv(gym.Env):
         render_width: int = 960,
         render_height: int = 720,
         render_camera: str = "side_2d",
-        success_angle_threshold: float = 0.25,
-        success_vel_threshold: float = 0.8,
-        success_hold_steps: int = 10,
+        success_angle_threshold: float = 0.16,
+        success_vel_threshold: float = 0.5,
+        success_hold_steps: int = 25,
     ) -> None:
         super().__init__()
         self.model = mujoco.MjModel.from_xml_path(model_path)
@@ -76,6 +76,8 @@ class TripleInvertedPendulumEnv(gym.Env):
         self.success_angle_threshold = float(success_angle_threshold)
         self.success_vel_threshold = float(success_vel_threshold)
         self.success_hold_steps = int(success_hold_steps)
+        # Two-stage reward shaping: once close to upright, emphasize stabilization.
+        self.refine_posture_threshold = 0.35
 
         self.goal_table = self._build_goal_table()
         self.task = TransitionTask(source_goal=0, target_goal=7)
@@ -208,11 +210,18 @@ class TripleInvertedPendulumEnv(gym.Env):
         swing_bonus = float(0.0)
         stall_penalty = float(0.0)
         progress_reward = float(0.0)
+        refine_cost = float(0.0)
+        refine_bonus = float(0.0)
         abs_x = abs(x)
 
         if self.benchmark_reward_mode:
             # Benchmark-like reward: prioritize posture stabilization with mild cart regularization.
             reward = 5.0 - (2.0 * posture_cost + 0.8 * vel_cost + cart_cost + effort_cost + action_smooth_cost)
+            if posture_cost < self.refine_posture_threshold:
+                # Upright refinement: avoid "leaning but barely alive".
+                refine_cost = float(0.75 * x**2 + 0.18 * xd**2 + 0.05 * np.sum(qd**2))
+                refine_bonus = float(1.0)
+                reward += refine_bonus - refine_cost
         else:
             if abs_x > 5.0:
                 edge_penalty = 2.0 * (abs_x - 5.0) ** 2 + 0.15 * abs(xd)
@@ -234,6 +243,8 @@ class TripleInvertedPendulumEnv(gym.Env):
             "progress_reward": progress_reward,
             "swing_bonus": swing_bonus,
             "stall_penalty": stall_penalty,
+            "refine_cost": refine_cost,
+            "refine_bonus": refine_bonus,
             "reward": reward,
         }
         return reward, comps
