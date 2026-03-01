@@ -121,11 +121,18 @@ class TripleInvertedPendulumEnv(gym.Env):
 
     def _build_goal_table(self) -> np.ndarray:
         goals = []
-        # 8种姿态: 每个关节目标角在 {0, pi}
+        # 8种姿态按“每节杆绝对朝向”定义:
+        # bit0->link1, bit1->link2, bit2->link3; 0=down, 1=up
+        # 再换算成相对关节角:
+        # q1 = abs1, q2 = abs1 xor abs2, q3 = abs2 xor abs3 (0或pi)
         for g in range(8):
-            bits = [(g >> k) & 1 for k in range(3)]
-            target = np.array([math.pi if b else 0.0 for b in bits], dtype=np.float32)
-            goals.append(target)
+            a1 = (g >> 0) & 1
+            a2 = (g >> 1) & 1
+            a3 = (g >> 2) & 1
+            q1 = math.pi if a1 else 0.0
+            q2 = math.pi if (a1 ^ a2) else 0.0
+            q3 = math.pi if (a2 ^ a3) else 0.0
+            goals.append(np.array([q1, q2, q3], dtype=np.float32))
         return np.stack(goals, axis=0)
 
     def set_task(self, source_goal: int, target_goal: int) -> None:
