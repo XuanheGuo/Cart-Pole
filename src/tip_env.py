@@ -53,6 +53,7 @@ class TripleInvertedPendulumEnv(gym.Env):
         self.render_height = render_height
         self.renderer = None
         self.render_ready = False
+        self.render_disabled = False
 
         self.frame_skip = frame_skip
         self.max_steps = max_steps
@@ -91,14 +92,20 @@ class TripleInvertedPendulumEnv(gym.Env):
 
     def close(self) -> None:
         if self.renderer is not None:
-            self.renderer.close()
+            try:
+                self.renderer.close()
+            except Exception:
+                pass
             self.renderer = None
             self.render_ready = False
+            self.render_disabled = False
         if self._log_fp is not None:
             self._log_fp.close()
             self._log_fp = None
 
     def _ensure_renderer(self) -> bool:
+        if self.render_disabled:
+            return False
         if self.render_ready and self.renderer is not None:
             return True
         try:
@@ -117,6 +124,9 @@ class TripleInvertedPendulumEnv(gym.Env):
             except Exception:
                 self.renderer = None
                 self.render_ready = False
+                # In headless environments without EGL/OSMesa, repeated retries
+                # trigger noisy renderer destructor errors. Disable further attempts.
+                self.render_disabled = True
                 return False
 
     def _build_goal_table(self) -> np.ndarray:
