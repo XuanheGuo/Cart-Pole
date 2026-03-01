@@ -49,6 +49,14 @@ class TripleInvertedPendulumEnv(gym.Env):
         super().__init__()
         self.model = mujoco.MjModel.from_xml_path(model_path)
         self.data = mujoco.MjData(self.model)
+        self.slider_jid = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_JOINT, "slider")
+        if self.slider_jid >= 0:
+            slider_range = self.model.jnt_range[self.slider_jid]
+            self.track_limit = float(min(abs(slider_range[0]), abs(slider_range[1])))
+        else:
+            self.track_limit = 6.0
+        # Stop slightly before MuJoCo hard limit to avoid visual "hitting edge but not done yet".
+        self.track_terminate_margin = 0.05
         self.render_width = render_width
         self.render_height = render_height
         self.renderer = None
@@ -357,7 +365,7 @@ class TripleInvertedPendulumEnv(gym.Env):
 
         terminated = False
         x, _ = self._cart_state()
-        out_of_track = abs(x) > 6.2
+        out_of_track = abs(x) >= (self.track_limit - self.track_terminate_margin)
         truncated = self.step_count >= self.max_steps or out_of_track
 
         obs = self._obs()
@@ -371,6 +379,7 @@ class TripleInvertedPendulumEnv(gym.Env):
             "target_goal": self.task.target_goal,
             "step": self.step_count,
             "out_of_track": out_of_track,
+            "track_limit": self.track_limit,
         }
         self.last_info = info
 
