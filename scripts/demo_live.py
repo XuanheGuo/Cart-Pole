@@ -49,10 +49,14 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", required=True, help="SAC model zip path")
     parser.add_argument("--xml", default="models/triple_inverted_pendulum.xml")
+    parser.add_argument("--mj-model", dest="xml", help="Alias of --xml")
     parser.add_argument("--episodes", type=int, default=5)
     parser.add_argument("--steps", type=int, default=1800)
     parser.add_argument("--fps", type=int, default=50)
     parser.add_argument("--save-video", default="outputs/demo_live.mp4")
+    parser.add_argument("--record-video", dest="save_video", help="Alias of --save-video")
+    parser.add_argument("--source-goal", type=int, default=0)
+    parser.add_argument("--target-goal", type=int, default=7)
     parser.add_argument("--show-window", action="store_true")
     args = parser.parse_args()
 
@@ -60,7 +64,7 @@ def main():
         model_path=args.xml,
         frame_skip=2,
         max_steps=args.steps,
-        transition_mode=True,
+        transition_mode=False,
         log_dir="logs/live",
     )
 
@@ -71,7 +75,7 @@ def main():
     writer = imageio.get_writer(str(video_path), fps=args.fps)
 
     for ep in range(args.episodes):
-        obs, info = env.reset()
+        obs, info = env.reset(options={"task": (args.source_goal, args.target_goal)})
         ep_reward = 0.0
         src = info["source_goal"]
         dst = info["target_goal"]
