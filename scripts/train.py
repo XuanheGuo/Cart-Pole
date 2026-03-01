@@ -226,6 +226,8 @@ def build_env(model_path: str, log_dir: Path, rank: int = 0, base_seed: int = 42
             max_steps=2000,
             transition_mode=True,
             single_target_mode=True if args is None else args.single_target_mode,
+            single_target_source_goal=0 if args is None else args.source_goal,
+            single_target_target_goal=7 if args is None else args.target_goal,
             benchmark_reward_mode=True if args is None else args.benchmark_reward_mode,
             edge_safety_assist=False if args is None else args.edge_safety_assist,
             log_dir=str(log_dir / "episodes"),
@@ -265,6 +267,8 @@ def main():
     parser.add_argument("--total-steps", type=int, default=800_000)
     parser.add_argument("--run-dir", default="outputs/sac_tip")
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--source-goal", type=int, default=0, help="固定任务源姿态ID(0-7)")
+    parser.add_argument("--target-goal", type=int, default=7, help="固定任务目标姿态ID(0-7)")
     parser.add_argument("--live-view", action="store_true", help="训练时显示实时仿真窗口")
     parser.add_argument("--live-freq", type=int, default=5, help="每多少个训练step渲染一次")
     parser.add_argument("--live-fps", type=int, default=30)

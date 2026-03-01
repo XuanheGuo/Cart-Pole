@@ -18,13 +18,13 @@
   <worldbody>
     <light diffuse="0.95 0.95 0.95" pos="0 -4 5" dir="0 1 -1"/>
     <geom name="bg" type="plane" pos="0 0 -1.5" size="12 12 0.1" rgba="0.98 0.98 0.98 1"/>
-    <geom name="rail" type="box" pos="0 0 0.22" size="5.1 0.006 0.006" rgba="0.2 0.2 0.2 1" mass="0.001"/>
-    <geom name="rail_post_l" type="capsule" fromto="-5.0 0 -1.5 -5.0 0 0.22" size="0.01" rgba="0.45 0.45 0.45 1" mass="0.001"/>
-    <geom name="rail_post_r" type="capsule" fromto="5.0 0 -1.5 5.0 0 0.22" size="0.01" rgba="0.45 0.45 0.45 1" mass="0.001"/>
-    <camera name="side_2d" pos="0 -10.0 -0.05" xyaxes="1 0 0 0 0 1" fovy="32"/>
+    <geom name="rail" type="box" pos="0 0 0.22" size="7.1 0.006 0.006" rgba="0.2 0.2 0.2 1" mass="0.001"/>
+    <geom name="rail_post_l" type="capsule" fromto="-7.0 0 -1.5 -7.0 0 0.22" size="0.01" rgba="0.45 0.45 0.45 1" mass="0.001"/>
+    <geom name="rail_post_r" type="capsule" fromto="7.0 0 -1.5 7.0 0 0.22" size="0.01" rgba="0.45 0.45 0.45 1" mass="0.001"/>
+    <camera name="side_2d" pos="0 -12.0 -0.05" xyaxes="1 0 0 0 0 1" fovy="36"/>
 
     <body name="cart" pos="0 0 0.22">
-      <joint name="slider" class="slider_joint" type="slide" axis="1 0 0" range="-5.0 5.0"/>
+      <joint name="slider" class="slider_joint" type="slide" axis="1 0 0" range="-7.0 7.0"/>
       <geom name="cart_geom" type="box" size="0.18 0.025 0.06" rgba="0.2 0.4 0.7 1" mass="2.0"/>
 
       <body name="link1" pos="0 0 0.06">

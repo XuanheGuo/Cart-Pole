@@ -33,6 +33,8 @@ class TripleInvertedPendulumEnv(gym.Env):
         max_steps: int = 2000,
         transition_mode: bool = True,
         single_target_mode: bool = True,
+        single_target_source_goal: int = 0,
+        single_target_target_goal: int = 7,
         benchmark_reward_mode: bool = True,
         edge_safety_assist: bool = False,
         log_dir: str | None = None,
@@ -56,6 +58,8 @@ class TripleInvertedPendulumEnv(gym.Env):
         self.max_steps = max_steps
         self.transition_mode = transition_mode
         self.single_target_mode = single_target_mode
+        self.single_target_source_goal = int(single_target_source_goal) % 8
+        self.single_target_target_goal = int(single_target_target_goal) % 8
         self.benchmark_reward_mode = benchmark_reward_mode
         self.edge_safety_assist = edge_safety_assist
         self.render_camera = render_camera
@@ -130,7 +134,7 @@ class TripleInvertedPendulumEnv(gym.Env):
     def sample_task(self) -> TransitionTask:
         # 基准模式：固定 G0 -> G7，先验证能稳定成功。
         if self.single_target_mode:
-            self.task = TransitionTask(0, 7)
+            self.task = TransitionTask(self.single_target_source_goal, self.single_target_target_goal)
             return self.task
         # 多任务模式：从自然下垂姿态 G0 出发，目标在其余7个姿态中采样
         src = 0
