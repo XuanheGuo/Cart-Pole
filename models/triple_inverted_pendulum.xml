@@ -64,6 +64,6 @@
   </worldbody>
 
   <actuator>
-    <motor name="cart_force" joint="slider" gear="500" ctrlrange="-1 1"/>
+    <motor name="cart_force" joint="slider" gear="220" ctrlrange="-1 1"/>
   </actuator>
 </mujoco>

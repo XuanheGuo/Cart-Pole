@@ -184,7 +184,7 @@ class TripleInvertedPendulumEnv(gym.Env):
     def _angle_error(self, q: np.ndarray, target: np.ndarray) -> np.ndarray:
         return wrap_to_pi(q - target)
 
-    def _reward(self, action: np.ndarray) -> tuple[float, dict[str, float]]:
+    def _reward(self, applied_action: float, action_delta: float) -> tuple[float, dict[str, float]]:
         q = self._joint_angles()
         qd = self._joint_velocities()
         x, xd = self._cart_state()
@@ -194,7 +194,8 @@ class TripleInvertedPendulumEnv(gym.Env):
         posture_cost = float(np.sum(angle_err**2))
         vel_cost = float(0.03 * np.sum(qd**2))
         cart_cost = float(0.08 * x**2 + 0.015 * xd**2)
-        effort_cost = float(0.0015 * np.sum(action**2))
+        effort_cost = float(0.008 * (applied_action**2))
+        action_smooth_cost = float(0.08 * (action_delta**2))
         edge_penalty = float(0.0)
         swing_bonus = float(0.0)
         stall_penalty = float(0.0)
@@ -203,7 +204,7 @@ class TripleInvertedPendulumEnv(gym.Env):
 
         if self.benchmark_reward_mode:
             # Benchmark-like reward: prioritize posture stabilization with mild cart regularization.
-            reward = 5.0 - (2.0 * posture_cost + 0.8 * vel_cost + cart_cost + effort_cost)
+            reward = 5.0 - (2.0 * posture_cost + 0.8 * vel_cost + cart_cost + effort_cost + action_smooth_cost)
         else:
             if abs_x > 5.0:
                 edge_penalty = 2.0 * (abs_x - 5.0) ** 2 + 0.15 * abs(xd)
@@ -212,7 +213,7 @@ class TripleInvertedPendulumEnv(gym.Env):
                 swing_bonus = 0.08 * min(abs(xd), 4.0) + 0.04 * min(np.linalg.norm(qd), 10.0)
                 if abs_x < 0.35 and abs(xd) < 0.12 and np.linalg.norm(qd) < 0.2:
                     stall_penalty = 0.4
-            reward = 3.5 - (2.5 * posture_cost + vel_cost + cart_cost + effort_cost + edge_penalty)
+            reward = 3.5 - (2.5 * posture_cost + vel_cost + cart_cost + effort_cost + action_smooth_cost + edge_penalty)
             reward += progress_reward + swing_bonus - stall_penalty
 
         comps = {
@@ -220,6 +221,7 @@ class TripleInvertedPendulumEnv(gym.Env):
             "vel_cost": vel_cost,
             "cart_cost": cart_cost,
             "effort_cost": effort_cost,
+            "action_smooth_cost": action_smooth_cost,
             "edge_penalty": edge_penalty,
             "progress_reward": progress_reward,
             "swing_bonus": swing_bonus,
@@ -321,7 +323,8 @@ class TripleInvertedPendulumEnv(gym.Env):
         action = np.asarray(action, dtype=np.float32).reshape(1)
         action = np.clip(action, -1.0, 1.0)
         x, xd = self._cart_state()
-        filtered_action = 0.3 * self.last_action + 0.7 * float(action[0])
+        prev_action = self.last_action
+        filtered_action = 0.3 * prev_action + 0.7 * float(action[0])
         if self.edge_safety_assist:
             # Optional edge correction for difficult multi-task setting.
             abs_x = abs(x)
@@ -332,6 +335,7 @@ class TripleInvertedPendulumEnv(gym.Env):
                 filtered_action += center_push + vel_damp
         filtered_action = float(np.clip(filtered_action, -1.0, 1.0))
         self.last_action = filtered_action
+        action_delta = filtered_action - prev_action
 
         self.data.ctrl[0] = filtered_action
         for _ in range(self.frame_skip):
@@ -339,7 +343,7 @@ class TripleInvertedPendulumEnv(gym.Env):
 
         self.step_count += 1
 
-        reward, reward_components = self._reward(action)
+        reward, reward_components = self._reward(filtered_action, action_delta)
         self.prev_posture_cost = float(reward_components["posture_cost"])
         success_instant = self._success_instant()
         if success_instant:
@@ -375,6 +379,7 @@ class TripleInvertedPendulumEnv(gym.Env):
                 "t": self.step_count,
                 "obs": obs.tolist(),
                 "action": action.tolist(),
+                "applied_action": filtered_action,
                 "reward": reward,
                 "info": info,
                 "state": self.get_state(),
