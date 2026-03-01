@@ -6,12 +6,12 @@
   </visual>
 
   <default>
-    <geom friction="0.0 0.0 0.0" density="300" contype="0" conaffinity="0"/>
+    <geom friction="0.0 0.0 0.0" density="250" contype="0" conaffinity="0"/>
     <default class="slider_joint">
-      <joint damping="0.08" armature="0.01" frictionloss="0.01"/>
+      <joint damping="0.05" armature="0.005" frictionloss="0.002"/>
     </default>
     <default class="hinge_joint">
-      <joint damping="0.28" armature="0.02" frictionloss="0.03"/>
+      <joint damping="0.10" armature="0.006" frictionloss="0.002"/>
     </default>
   </default>
 
@@ -24,12 +24,12 @@
     <camera name="side_2d" pos="0 -12.0 -0.05" xyaxes="1 0 0 0 0 1" fovy="36"/>
 
     <body name="cart" pos="0 0 0.22">
-      <joint name="slider" class="slider_joint" type="slide" axis="1 0 0" range="-7.0 7.0"/>
-      <geom name="cart_geom" type="box" size="0.18 0.025 0.06" rgba="0.2 0.4 0.7 1" mass="2.0"/>
+      <joint name="slider" class="slider_joint" type="slide" axis="1 0 0" range="-6.0 6.0"/>
+      <geom name="cart_geom" type="box" size="0.18 0.025 0.06" rgba="0.2 0.4 0.7 1" mass="1.2"/>
 
       <body name="link1" pos="0 0 0.06">
         <joint name="hinge1" class="hinge_joint" type="hinge" axis="0 1 0" range="-3.1416 3.1416"/>
-        <geom name="link1_geom" type="capsule" fromto="0 0 0 0 0 -0.55" size="0.009" rgba="0.85 0.2 0.2 1" mass="1.0"/>
+        <geom name="link1_geom" type="capsule" fromto="0 0 0 0 0 -0.55" size="0.009" rgba="0.85 0.2 0.2 1" mass="0.60"/>
 
         <body name="link2" pos="0 0 -0.55">
           <joint
@@ -38,11 +38,11 @@
             type="hinge"
             axis="0 1 0"
             range="-3.1416 3.1416"
-            damping="0.18"
-            armature="0.012"
-            frictionloss="0.015"
+            damping="0.06"
+            armature="0.004"
+            frictionloss="0.0015"
           />
-          <geom name="link2_geom" type="capsule" fromto="0 0 0 0 0 -0.45" size="0.0075" rgba="0.2 0.7 0.25 1" mass="0.75"/>
+          <geom name="link2_geom" type="capsule" fromto="0 0 0 0 0 -0.45" size="0.0075" rgba="0.2 0.7 0.25 1" mass="0.40"/>
 
           <body name="link3" pos="0 0 -0.45">
             <joint
@@ -51,11 +51,11 @@
               type="hinge"
               axis="0 1 0"
               range="-3.1416 3.1416"
-              damping="0.12"
-              armature="0.008"
-              frictionloss="0.01"
+              damping="0.04"
+              armature="0.003"
+              frictionloss="0.001"
             />
-            <geom name="link3_geom" type="capsule" fromto="0 0 0 0 0 -0.35" size="0.006" rgba="0.9 0.75 0.2 1" mass="0.55"/>
+            <geom name="link3_geom" type="capsule" fromto="0 0 0 0 0 -0.35" size="0.006" rgba="0.9 0.75 0.2 1" mass="0.25"/>
             <site name="tip" pos="0 0 -0.35" size="0.01" rgba="0.9 0.1 0.9 1"/>
           </body>
         </body>
@@ -64,6 +64,6 @@
   </worldbody>
 
   <actuator>
-    <motor name="cart_force" joint="slider" gear="380" ctrlrange="-1 1"/>
+    <motor name="cart_force" joint="slider" gear="500" ctrlrange="-1 1"/>
   </actuator>
 </mujoco>
