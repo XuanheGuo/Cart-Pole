@@ -214,8 +214,12 @@ class LiveTrainingVizCallback(BaseCallback):
         if self.video_writer is not None:
             self.video_writer.close()
             self.video_writer = None
-        if cv2 is not None:
-            cv2.destroyAllWindows()
+        if cv2 is not None and self.window_available:
+            try:
+                cv2.destroyAllWindows()
+            except Exception:
+                # Headless OpenCV builds (e.g. Colab) do not provide GUI backends.
+                pass
 
 
 def build_env(model_path: str, log_dir: Path, rank: int = 0, base_seed: int = 42, args=None):
